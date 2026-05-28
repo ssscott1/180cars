@@ -20,6 +20,8 @@ export default function AgreementDetail() {
   const [terminateReason, setTerminateReason] = useState('');
   const [showTerminate, setShowTerminate] = useState(false);
   const [confirming, setConfirming] = useState<string | null>(null);
+  const [unconfirmTarget, setUnconfirmTarget] = useState<string | null>(null);
+  const [unconfirming, setUnconfirming] = useState<string | null>(null);
 
   const load = useCallback(() => {
     agreementService.getAgreementDetail(id!).then((d) => {
@@ -53,6 +55,20 @@ export default function AgreementDetail() {
       toast.error('Failed to confirm payment');
     } finally {
       setConfirming(null);
+    }
+  }
+
+  async function unconfirmPayment(paymentId: string) {
+    setUnconfirming(paymentId);
+    try {
+      await paymentService.unconfirmPayment(paymentId);
+      toast.success('Confirmation cancelled — payment restored to pending/overdue');
+      setUnconfirmTarget(null);
+      load();
+    } catch {
+      toast.error('Failed to cancel confirmation');
+    } finally {
+      setUnconfirming(null);
     }
   }
 
@@ -178,6 +194,32 @@ export default function AgreementDetail() {
                         : '—'}
                     </td>
                     <td className="px-4 py-2 text-sm">
+                      {isConfirmed && unconfirmTarget !== p.id && (
+                        <button
+                          onClick={() => setUnconfirmTarget(p.id)}
+                          className="text-xs text-amber-600 hover:text-amber-800 hover:underline"
+                        >
+                          Cancel confirmation
+                        </button>
+                      )}
+                      {isConfirmed && unconfirmTarget === p.id && (
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-xs text-amber-700 font-medium">Are you sure?</span>
+                          <button
+                            onClick={() => unconfirmPayment(p.id)}
+                            disabled={unconfirming === p.id}
+                            className="text-xs bg-red-100 text-red-700 hover:bg-red-200 font-medium px-2 py-0.5 rounded disabled:opacity-50"
+                          >
+                            {unconfirming === p.id ? 'Undoing…' : 'Yes, cancel it'}
+                          </button>
+                          <button
+                            onClick={() => setUnconfirmTarget(null)}
+                            className="text-xs text-gray-500 hover:text-gray-700"
+                          >
+                            Keep
+                          </button>
+                        </div>
+                      )}
                       {!isConfirmed && p.payment_status !== 'waived' && (
                         <button
                           onClick={() => confirmPayment(p.id)}

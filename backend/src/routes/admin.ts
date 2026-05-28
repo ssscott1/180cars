@@ -503,7 +503,7 @@ router.post('/payments/:schedule_id/confirm', authenticate, requireAdmin, async 
 router.post('/payments/:schedule_id/unconfirm', authenticate, requireAdmin, async (req: Request, res: Response) => {
   const { data: existing, error: fetchErr } = await supabaseAdmin
     .from('rental_payment_schedule')
-    .select('payment_status')
+    .select('payment_status, due_date')
     .eq('id', req.params.schedule_id)
     .single();
 
@@ -512,10 +512,16 @@ router.post('/payments/:schedule_id/unconfirm', authenticate, requireAdmin, asyn
     return res.status(409).json({ error: 'Only confirmed (paid) payments can be unconfirmed' });
   }
 
+  // Set overdue if due date is in the past, otherwise pending
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const dueDate = new Date(existing.due_date);
+  const restoredStatus = isAfter(today, dueDate) ? 'overdue' : 'pending';
+
   const { data, error } = await supabaseAdmin
     .from('rental_payment_schedule')
     .update({
-      payment_status: 'pending',
+      payment_status: restoredStatus,
       paid_at: null,
       payment_confirmed_at: null,
       payment_confirmed_by_admin_id: null,
@@ -526,7 +532,7 @@ router.post('/payments/:schedule_id/unconfirm', authenticate, requireAdmin, asyn
 
   if (error || !data) return res.status(500).json({ error: 'Failed to unconfirm payment' });
 
-  await writeAuditLog(req.user!.id, 'payment.unconfirmed', 'payment', data.id);
+  await writeAuditLog(req.user!.id, 'payment.unconfirmed', 'payment', data.id, { restored_status: restoredStatus });
   return res.json({ message: 'Payment unconfirmed', payment: data });
 });
 
