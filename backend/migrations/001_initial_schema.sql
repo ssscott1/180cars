@@ -184,26 +184,32 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trg_dealership_locations_updated_at ON dealership_locations;
 CREATE TRIGGER trg_dealership_locations_updated_at
   BEFORE UPDATE ON dealership_locations
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS trg_users_updated_at ON users;
 CREATE TRIGGER trg_users_updated_at
   BEFORE UPDATE ON users
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS trg_members_updated_at ON members;
 CREATE TRIGGER trg_members_updated_at
   BEFORE UPDATE ON members
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS trg_vehicles_updated_at ON vehicles;
 CREATE TRIGGER trg_vehicles_updated_at
   BEFORE UPDATE ON vehicles
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS trg_rental_agreements_updated_at ON rental_agreements;
 CREATE TRIGGER trg_rental_agreements_updated_at
   BEFORE UPDATE ON rental_agreements
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS trg_rental_payment_schedule_updated_at ON rental_payment_schedule;
 CREATE TRIGGER trg_rental_payment_schedule_updated_at
   BEFORE UPDATE ON rental_payment_schedule
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
