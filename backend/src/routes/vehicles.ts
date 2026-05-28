@@ -26,12 +26,35 @@ router.post(
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
-    const { purchase_price, ...rest } = req.body;
+    const { purchase_price, weekly_rental_amount, deposit_amount, ...rest } = req.body;
     const pricing = calculatePricing(parseFloat(purchase_price));
+
+    // Sanitise: convert empty strings to null and coerce numeric types
+    const nullify = (v: unknown) => (v === '' || v === undefined ? null : v);
+
+    const vehicleData = {
+      make: rest.make,
+      model: rest.model,
+      year: parseInt(rest.year, 10),
+      rego: rest.rego,
+      vin: rest.vin,
+      engine_number: rest.engine_number,
+      description: nullify(rest.description),
+      purchase_price: parseFloat(purchase_price),
+      weekly_rental_amount: pricing.weekly_rental_amount,
+      deposit_amount: pricing.deposit_amount,
+      vehicle_status: 'available',
+      insurance_provider: nullify(rest.insurance_provider),
+      insurance_policy: nullify(rest.insurance_policy),
+      insurance_expiry: nullify(rest.insurance_expiry),
+      rego_expiry: nullify(rest.rego_expiry),
+      supplying_dealer: nullify(rest.supplying_dealer),
+      location_id: nullify(rest.location_id),
+    };
 
     const { data, error } = await supabaseAdmin
       .from('vehicles')
-      .insert({ ...rest, purchase_price, ...pricing, vehicle_status: 'available' })
+      .insert(vehicleData)
       .select()
       .single();
 
@@ -92,11 +115,31 @@ router.put(
   requireAdmin,
   async (req: Request, res: Response) => {
     // Prevent modification of immutable fields
-    const { rego, vin, engine_number, ...updates } = req.body;
+    const { rego, vin, engine_number, ...raw } = req.body;
     void rego; void vin; void engine_number;
 
+    const nullify = (v: unknown) => (v === '' || v === undefined ? null : v);
+
+    const updates: Record<string, unknown> = {
+      make: raw.make,
+      model: raw.model,
+      year: raw.year ? parseInt(raw.year, 10) : undefined,
+      description: nullify(raw.description),
+      purchase_price: raw.purchase_price ? parseFloat(raw.purchase_price) : undefined,
+      insurance_provider: nullify(raw.insurance_provider),
+      insurance_policy: nullify(raw.insurance_policy),
+      insurance_expiry: nullify(raw.insurance_expiry),
+      rego_expiry: nullify(raw.rego_expiry),
+      supplying_dealer: nullify(raw.supplying_dealer),
+      location_id: nullify(raw.location_id),
+      vehicle_status: nullify(raw.vehicle_status),
+    };
+
+    // Remove undefined keys so we only update provided fields
+    Object.keys(updates).forEach((k) => updates[k] === undefined && delete updates[k]);
+
     if (updates.purchase_price) {
-      const pricing = calculatePricing(parseFloat(updates.purchase_price));
+      const pricing = calculatePricing(updates.purchase_price as number);
       updates.weekly_rental_amount = pricing.weekly_rental_amount;
       updates.deposit_amount = pricing.deposit_amount;
     }
