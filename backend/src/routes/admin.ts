@@ -14,6 +14,71 @@ const ALLOWED_FILE_TYPES = ['application/pdf', 'image/jpeg', 'image/png'];
 // MEMBER MANAGEMENT
 // ─────────────────────────────────────────────
 
+// POST /admin/members — admin creates a member directly (pre-approved, invite email sent)
+router.post(
+  '/members',
+  authenticate,
+  requireAdmin,
+  [
+    body('email').isEmail().normalizeEmail(),
+    body('first_name').trim().notEmpty(),
+    body('last_name').trim().notEmpty(),
+  ],
+  async (req: Request, res: Response) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+
+    const { email, first_name, last_name, ...rest } = req.body;
+
+    // Invite the user — Supabase sends a magic link / invite email
+    const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email);
+    if (inviteError || !inviteData.user) {
+      return res.status(400).json({ error: inviteError?.message ?? 'Failed to invite user' });
+    }
+
+    const userId = inviteData.user.id;
+
+    await supabaseAdmin.from('users').insert({
+      id: userId,
+      email,
+      user_type: 'member',
+      location_id: rest.location_id ?? null,
+    });
+
+    const { data: member, error: memberError } = await supabaseAdmin
+      .from('members')
+      .insert({
+        user_id: userId,
+        first_name,
+        last_name,
+        email,
+        mobile: rest.mobile ?? null,
+        dob: rest.dob ?? null,
+        address: rest.address ?? null,
+        drivers_license_number: rest.drivers_license_number ?? null,
+        medicare_number: rest.medicare_number ?? null,
+        employer_name: rest.employer_name ?? null,
+        employer_phone: rest.employer_phone ?? null,
+        bank_account_name: rest.bank_account_name ?? null,
+        bank_bsb: rest.bank_bsb ?? null,
+        bank_account_number: rest.bank_account_number ?? null,
+        location_id: rest.location_id ?? null,
+        member_status: 'inactive',
+        approval_status: 'approved',
+      })
+      .select()
+      .single();
+
+    if (memberError) {
+      await supabaseAdmin.auth.admin.deleteUser(userId);
+      return res.status(500).json({ error: 'Failed to create member record' });
+    }
+
+    await writeAuditLog(req.user!.id, 'member.created_by_admin', 'member', member.id, { email });
+    return res.status(201).json({ member, message: 'Member created and invite email sent.' });
+  }
+);
+
 // GET /admin/members
 router.get('/members', authenticate, requireAdmin, async (req: Request, res: Response) => {
   let q = supabaseAdmin

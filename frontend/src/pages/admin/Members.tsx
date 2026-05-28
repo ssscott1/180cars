@@ -37,6 +37,7 @@ export default function Members() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">Members</h1>
+        <Link to="/admin/members/new" className="btn-primary">+ Add Member</Link>
       </div>
 
       <div className="flex flex-wrap gap-2">

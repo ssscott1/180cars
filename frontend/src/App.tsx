@@ -14,6 +14,7 @@ import Vehicles from './pages/admin/Vehicles';
 import VehicleForm from './pages/admin/VehicleForm';
 import VehicleDetail from './pages/admin/VehicleDetail';
 import Members from './pages/admin/Members';
+import MemberForm from './pages/admin/MemberForm';
 import MemberDetail from './pages/admin/MemberDetail';
 import CreateAgreement from './pages/admin/CreateAgreement';
 import Agreements from './pages/admin/Agreements';
@@ -68,6 +69,11 @@ function AppRoutes() {
           <Route path="/admin/members" element={
             <ProtectedRoute allowedRoles={['system_admin', 'location_admin']}>
               <Members />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/members/new" element={
+            <ProtectedRoute allowedRoles={['system_admin', 'location_admin']}>
+              <MemberForm />
             </ProtectedRoute>
           } />
           <Route path="/admin/members/:id" element={
