@@ -13,30 +13,47 @@ export default function VehicleForm() {
   const { id } = useParams();
   const isEdit = !!id;
   const navigate = useNavigate();
-  const { register, handleSubmit, setValue, watch, formState: { errors } } = useForm<VehicleFormData>();
+  const { register, handleSubmit, setValue, getValues, formState: { errors } } = useForm<VehicleFormData>();
   const [loading, setLoading] = useState(false);
   const [invoiceFile, setInvoiceFile] = useState<File | null>(null);
+  const [invoiceReady, setInvoiceReady] = useState(false);
   const [initialLoading, setInitialLoading] = useState(isEdit);
-
-  const purchasePrice = watch('purchase_price');
-
-  useEffect(() => {
-    if (purchasePrice && purchasePrice > 0) {
-      const weekly = Math.round((Number(purchasePrice) / 110) * 100) / 100;
-      setValue('weekly_rental_amount', weekly);
-      setValue('deposit_amount', Math.round(weekly * 6 * 100) / 100);
-    }
-  }, [purchasePrice, setValue]);
+  const [pricingCalculated, setPricingCalculated] = useState(false);
 
   useEffect(() => {
     if (!isEdit) return;
     vehicleService.getVehicleDetail(id!).then((v) => {
       Object.entries(v).forEach(([k, val]) => setValue(k as keyof VehicleFormData, val as never));
+      setPricingCalculated(true);
       setInitialLoading(false);
     });
   }, [id, isEdit, setValue]);
 
+  function calculatePricing() {
+    const price = parseFloat(String(getValues('purchase_price')));
+    if (!price || price <= 0) {
+      toast.error('Enter a valid purchase price first');
+      return;
+    }
+    const weekly = Math.round((price / 110) * 100) / 100;
+    const deposit = Math.round(weekly * 6 * 100) / 100;
+    setValue('weekly_rental_amount', weekly);
+    setValue('deposit_amount', deposit);
+    setPricingCalculated(true);
+    toast.success(`Calculated — Weekly: $${weekly.toFixed(2)}, Deposit: $${deposit.toFixed(2)}`);
+  }
+
+  function handleInvoiceFile(file: File) {
+    setInvoiceFile(file);
+    setInvoiceReady(true);
+  }
+
   async function onSubmit(data: VehicleFormData) {
+    if (!pricingCalculated) {
+      toast.error('Please calculate pricing before saving');
+      return;
+    }
+
     setLoading(true);
     try {
       const vehicle = isEdit
@@ -45,6 +62,7 @@ export default function VehicleForm() {
 
       if (invoiceFile) {
         await vehicleService.uploadInvoice(vehicle.id, invoiceFile);
+        toast.success('Invoice uploaded');
       }
 
       toast.success(`Vehicle ${isEdit ? 'updated' : 'created'} successfully`);
@@ -108,16 +126,48 @@ export default function VehicleForm() {
 
         <h2 className="text-lg font-semibold border-b pb-2">Pricing</h2>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <Field name="purchase_price" label="Purchase Price ($)" type="number" required />
           <div>
-            <label className="form-label">Weekly Rental (auto-calc)</label>
-            <input {...register('weekly_rental_amount')} type="number" step="0.01" className="form-input bg-gray-50" readOnly />
+            <label className="form-label">Purchase Price ($) <span className="text-red-500">*</span></label>
+            <input
+              {...register('purchase_price', { required: 'Purchase price is required', min: { value: 1, message: 'Must be greater than 0' } })}
+              type="number"
+              step="1"
+              className="form-input"
+              placeholder="e.g. 25000"
+              onChange={() => setPricingCalculated(false)}
+            />
+            {errors.purchase_price && <p className="form-error">{errors.purchase_price.message}</p>}
           </div>
           <div>
-            <label className="form-label">Deposit (auto-calc)</label>
-            <input {...register('deposit_amount')} type="number" step="0.01" className="form-input bg-gray-50" readOnly />
+            <label className="form-label">Weekly Rental</label>
+            <input
+              {...register('weekly_rental_amount')}
+              type="number"
+              step="0.01"
+              className={`form-input ${pricingCalculated ? 'bg-green-50 border-green-300' : 'bg-gray-50'}`}
+              readOnly
+              placeholder="Click Calculate →"
+            />
+          </div>
+          <div>
+            <label className="form-label">Deposit (6 weeks)</label>
+            <input
+              {...register('deposit_amount')}
+              type="number"
+              step="0.01"
+              className={`form-input ${pricingCalculated ? 'bg-green-50 border-green-300' : 'bg-gray-50'}`}
+              readOnly
+              placeholder="Click Calculate →"
+            />
           </div>
         </div>
+        <button
+          type="button"
+          onClick={calculatePricing}
+          className={`btn-secondary w-full sm:w-auto ${pricingCalculated ? 'border-green-400 text-green-700' : ''}`}
+        >
+          {pricingCalculated ? '✓ Pricing Calculated' : 'Calculate Weekly Rental & Deposit'}
+        </button>
 
         <h2 className="text-lg font-semibold border-b pb-2">Insurance & Registration</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -128,14 +178,39 @@ export default function VehicleForm() {
         </div>
 
         <h2 className="text-lg font-semibold border-b pb-2">Invoice</h2>
-        <FileUpload onFile={setInvoiceFile} label="Upload invoice (PDF / JPG / PNG)" />
+        {invoiceReady ? (
+          <div className="flex items-center gap-3 p-3 rounded-lg bg-green-50 border border-green-300">
+            <span className="text-green-600 text-lg">✓</span>
+            <div className="flex-1">
+              <p className="text-sm font-medium text-green-700">{invoiceFile?.name}</p>
+              <p className="text-xs text-green-600">Ready to upload — will be saved when you click Create Vehicle</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => { setInvoiceFile(null); setInvoiceReady(false); }}
+              className="text-xs text-gray-500 hover:text-red-500"
+            >
+              Remove
+            </button>
+          </div>
+        ) : (
+          <FileUpload onFile={handleInvoiceFile} label="Select invoice to upload (PDF / JPG / PNG)" />
+        )}
 
         <div className="flex gap-4 pt-2">
           <button type="button" onClick={() => navigate(-1)} className="btn-secondary flex-1">Cancel</button>
-          <button type="submit" disabled={loading} className="btn-primary flex-1">
+          <button
+            type="submit"
+            disabled={loading || !pricingCalculated}
+            className="btn-primary flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
+            title={!pricingCalculated ? 'Calculate pricing first' : ''}
+          >
             {loading ? 'Saving…' : isEdit ? 'Save Changes' : 'Create Vehicle'}
           </button>
         </div>
+        {!pricingCalculated && (
+          <p className="text-xs text-center text-amber-600">Calculate pricing before saving</p>
+        )}
       </form>
     </div>
   );
