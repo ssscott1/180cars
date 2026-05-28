@@ -467,7 +467,8 @@ router.get(
     let q = supabaseAdmin
       .from('rental_payment_schedule')
       .select('*, rental_agreements(member_id, vehicle_id, members(first_name, last_name), vehicles(make, model, rego))')
-      .order('due_date', { ascending: false });
+      .eq('payment_status', 'paid')
+      .order('payment_confirmed_at', { ascending: false });
 
     if (req.query.from) q = q.gte('due_date', req.query.from as string);
     if (req.query.to) q = q.lte('due_date', req.query.to as string);
@@ -496,6 +497,37 @@ router.post('/payments/:schedule_id/confirm', authenticate, requireAdmin, async 
 
   await writeAuditLog(req.user!.id, 'payment.confirmed', 'payment', data.id);
   return res.json({ message: 'Payment confirmed', payment: data });
+});
+
+// POST /admin/payments/:schedule_id/unconfirm
+router.post('/payments/:schedule_id/unconfirm', authenticate, requireAdmin, async (req: Request, res: Response) => {
+  const { data: existing, error: fetchErr } = await supabaseAdmin
+    .from('rental_payment_schedule')
+    .select('payment_status')
+    .eq('id', req.params.schedule_id)
+    .single();
+
+  if (fetchErr || !existing) return res.status(404).json({ error: 'Payment entry not found' });
+  if (existing.payment_status !== 'paid') {
+    return res.status(409).json({ error: 'Only confirmed (paid) payments can be unconfirmed' });
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from('rental_payment_schedule')
+    .update({
+      payment_status: 'pending',
+      paid_at: null,
+      payment_confirmed_at: null,
+      payment_confirmed_by_admin_id: null,
+    })
+    .eq('id', req.params.schedule_id)
+    .select()
+    .single();
+
+  if (error || !data) return res.status(500).json({ error: 'Failed to unconfirm payment' });
+
+  await writeAuditLog(req.user!.id, 'payment.unconfirmed', 'payment', data.id);
+  return res.json({ message: 'Payment unconfirmed', payment: data });
 });
 
 // POST /admin/payments/:schedule_id/retry

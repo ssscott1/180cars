@@ -21,6 +21,10 @@ export const paymentService = {
     await api.post(`/admin/payments/${scheduleId}/confirm`);
   },
 
+  async unconfirmPayment(scheduleId: string): Promise<void> {
+    await api.post(`/admin/payments/${scheduleId}/unconfirm`);
+  },
+
   async retryPayment(scheduleId: string): Promise<void> {
     await api.post(`/admin/payments/${scheduleId}/retry`);
   },
