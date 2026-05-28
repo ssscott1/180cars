@@ -24,13 +24,17 @@ export default function MemberForm() {
   const navigate = useNavigate();
   const { register, handleSubmit, formState: { errors } } = useForm<MemberFormData>();
   const [loading, setLoading] = useState(false);
+  const [created, setCreated] = useState<{ memberId: string; tempPassword: string; name: string } | null>(null);
 
   async function onSubmit(data: MemberFormData) {
     setLoading(true);
     try {
       const { data: result } = await api.post('/admin/members', data);
-      toast.success(result.message ?? 'Member created successfully');
-      navigate(`/admin/members/${result.member.id}`);
+      setCreated({
+        memberId: result.member.id,
+        tempPassword: result.temp_password,
+        name: `${data.first_name} ${data.last_name}`,
+      });
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
         ?? (err instanceof Error ? err.message : 'Failed to create member');
@@ -38,6 +42,45 @@ export default function MemberForm() {
     } finally {
       setLoading(false);
     }
+  }
+
+  if (created) {
+    return (
+      <div className="max-w-lg mx-auto mt-12 space-y-6">
+        <div className="card text-center space-y-4">
+          <div className="text-5xl">✅</div>
+          <h2 className="text-xl font-semibold text-gray-900">{created.name} added</h2>
+          <p className="text-gray-600 text-sm">Share these login details with the member:</p>
+          <div className="bg-gray-50 rounded-lg p-4 text-left space-y-2 border border-gray-200">
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-500">Email</span>
+              <span className="font-mono font-medium">{created.name}</span>
+            </div>
+            <div className="flex justify-between items-center text-sm">
+              <span className="text-gray-500">Temp Password</span>
+              <div className="flex items-center gap-2">
+                <span className="font-mono font-bold text-blue-700 bg-blue-50 px-2 py-1 rounded">{created.tempPassword}</span>
+                <button
+                  onClick={() => { navigator.clipboard.writeText(created.tempPassword); toast.success('Copied!'); }}
+                  className="text-xs text-gray-500 hover:text-blue-600"
+                >
+                  Copy
+                </button>
+              </div>
+            </div>
+          </div>
+          <p className="text-xs text-amber-600">The member should change this password after first login.</p>
+          <div className="flex gap-3 justify-center pt-2">
+            <button onClick={() => navigate(`/admin/members/${created.memberId}`)} className="btn-primary">
+              View Member Profile
+            </button>
+            <button onClick={() => { setCreated(null); }} className="btn-secondary">
+              Add Another Member
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   const Field = ({
@@ -67,7 +110,7 @@ export default function MemberForm() {
       </div>
 
       <div className="mb-4 rounded-md bg-blue-50 border border-blue-200 p-4 text-sm text-blue-800">
-        The member will receive an invite email to set their password and access the member portal.
+        A temporary password will be generated on save. Share it with the member so they can log in.
         Their account is pre-approved and ready for a vehicle assignment.
       </div>
 

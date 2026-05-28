@@ -14,7 +14,7 @@ const ALLOWED_FILE_TYPES = ['application/pdf', 'image/jpeg', 'image/png'];
 // MEMBER MANAGEMENT
 // ─────────────────────────────────────────────
 
-// POST /admin/members — admin creates a member directly (pre-approved, invite email sent)
+// POST /admin/members — admin creates a member directly (pre-approved, no email sent)
 router.post(
   '/members',
   authenticate,
@@ -30,13 +30,24 @@ router.post(
 
     const { email, first_name, last_name, ...rest } = req.body;
 
-    // Invite the user — Supabase sends a magic link / invite email
-    const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email);
-    if (inviteError || !inviteData.user) {
-      return res.status(400).json({ error: inviteError?.message ?? 'Failed to invite user' });
+    // Generate a temporary password — admin shares this with the member manually
+    const tempPassword =
+      Math.random().toString(36).slice(2, 7).toUpperCase() +
+      Math.random().toString(36).slice(2, 7) +
+      '1!';
+
+    // Create auth user without sending any email
+    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+      email,
+      password: tempPassword,
+      email_confirm: true,
+    });
+
+    if (authError || !authData.user) {
+      return res.status(400).json({ error: authError?.message ?? 'Failed to create user' });
     }
 
-    const userId = inviteData.user.id;
+    const userId = authData.user.id;
 
     await supabaseAdmin.from('users').insert({
       id: userId,
@@ -75,7 +86,11 @@ router.post(
     }
 
     await writeAuditLog(req.user!.id, 'member.created_by_admin', 'member', member.id, { email });
-    return res.status(201).json({ member, message: 'Member created and invite email sent.' });
+    return res.status(201).json({
+      member,
+      temp_password: tempPassword,
+      message: 'Member created. Share the temporary password with them.',
+    });
   }
 );
 
