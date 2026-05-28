@@ -30,7 +30,7 @@ export default function MemberSignup() {
   async function onSubmit(data: SignupForm) {
     setLoading(true);
     try {
-      await authService.registerMember(data);
+      await authService.registerMember(data as unknown as Record<string, unknown>);
       setDone(true);
       toast.success('Application submitted! Pending admin approval.');
     } catch (err: unknown) {

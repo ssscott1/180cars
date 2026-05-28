@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { agreementService } from '../../services/agreementService';
-import { RentalAgreement, PaymentScheduleEntry } from '../../types';
+import { RentalAgreement, PaymentScheduleEntry, Vehicle, Member } from '../../types';
 import PaymentStatusBadge from '../../components/shared/PaymentStatusBadge';
 import LoadingSpinner from '../../components/shared/LoadingSpinner';
 import { format } from 'date-fns';
